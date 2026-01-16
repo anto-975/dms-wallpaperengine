@@ -13,6 +13,7 @@ PluginComponent {
     property var processes: ({})
     property bool generateStaticWallpaper: pluginData.generateStaticWallpaper || false
     property bool prevGenerateStaticWallpaper: false
+    property bool isActiveInstance: false
     property string mainMonitor: {
         const monitors = Object.keys(monitorScenes)
         return monitors.length > 0 ? monitors[0] : ""
@@ -20,7 +21,9 @@ PluginComponent {
     property var previousScreenNames: []
 
     onPluginDataChanged: {
-        syncScenesWithData()
+        if (isActiveInstance) {
+            syncScenesWithData()
+        }
     }
 
     // Watch for display hotplug events (connect/disconnect)
@@ -54,6 +57,7 @@ PluginComponent {
     }
 
     onGenerateStaticWallpaperChanged: {
+        if (!isActiveInstance) return
         // Only restart if this is a real change (not initial load)
         if (prevGenerateStaticWallpaper !== generateStaticWallpaper) {
             prevGenerateStaticWallpaper = generateStaticWallpaper
@@ -303,16 +307,47 @@ PluginComponent {
         }
     }
 
+    // Instance lock - only one plugin instance should manage wallpapers
+    Process {
+        id: lockChecker
+        command: ["bash", "-c", "exec 200>/tmp/lwe-instance.lock; flock -n 200 || exit 1; sleep infinity"]
+
+        onExited: (code) => {
+            if (code === 1) {
+                console.info("LinuxWallpaperEngine: Another instance is active, this instance will be idle")
+            }
+        }
+    }
+
+    Timer {
+        id: instanceCheckTimer
+        interval: 100
+        repeat: false
+        onTriggered: {
+            if (lockChecker.running) {
+                console.info("LinuxWallpaperEngine: This instance is now active")
+                isActiveInstance = true
+                prevGenerateStaticWallpaper = generateStaticWallpaper
+                syncScenesWithData()
+            }
+        }
+    }
+
     Component.onCompleted: {
-        console.info("LinuxWallpaperEngine: Plugin started")
-        prevGenerateStaticWallpaper = generateStaticWallpaper
         // Initialize screen tracking for hotplug detection
         previousScreenNames = Quickshell.screens.map(screen => screen.name)
-        syncScenesWithData()
+        console.info("LinuxWallpaperEngine: Plugin starting...")
+        lockChecker.running = true
+        instanceCheckTimer.start()
     }
 
     Component.onDestruction: {
         console.info("LinuxWallpaperEngine: Plugin stopping, cleaning up processes")
+
+        // Stop the lock holder process
+        if (lockChecker.running) {
+            lockChecker.running = false
+        }
 
         for (const monitor in processes) {
             if (processes[monitor]) {
@@ -322,7 +357,6 @@ PluginComponent {
         }
 
         for (const monitor in monitorScenes) {
-            // synchronous process call blocking
             Quickshell.execDetached([
                 "pkill", "-f", ".*linux-wallpaperengine.*--screen-root " + escapeRegex(monitor)
             ])
