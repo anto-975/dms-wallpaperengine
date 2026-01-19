@@ -101,6 +101,9 @@ PluginComponent {
 
     function syncScenesWithData() {
         const newScenes = pluginData.monitorScenes || {}
+        const connectedMonitors = Quickshell.screens.map(screen => screen.name)
+
+        console.info("LinuxWallpaperEngine: Syncing scenes. Connected monitors:", JSON.stringify(connectedMonitors))
 
         for (const monitor in monitorScenes) {
             if (!newScenes.hasOwnProperty(monitor)) {
@@ -112,6 +115,12 @@ PluginComponent {
         for (const monitor in newScenes) {
             const newSceneId = newScenes[monitor]
             const oldSceneId = monitorScenes[monitor]
+
+            // Skip if monitor is not currently connected
+            if (!connectedMonitors.includes(monitor)) {
+                console.info("LinuxWallpaperEngine: Skipping scene for disconnected monitor:", monitor)
+                continue
+            }
 
             if (!newSceneId) {
                 if (processes[monitor]) {
@@ -129,8 +138,11 @@ PluginComponent {
 
             const sceneChanged = newSceneId !== oldSceneId
             const settingsChanged = !deepEqual(newSettings || {}, oldSettings || {})
+            const processNotRunning = !processes[monitor]
 
-            if (sceneChanged || settingsChanged) {
+            console.info("LinuxWallpaperEngine: Monitor", monitor, "- sceneChanged:", sceneChanged, "settingsChanged:", settingsChanged, "processNotRunning:", processNotRunning)
+
+            if (sceneChanged || settingsChanged || processNotRunning) {
                 launchWallpaperEngine(monitor, newSceneId)
             }
         }
