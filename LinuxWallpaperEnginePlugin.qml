@@ -31,6 +31,7 @@ PluginComponent {
         target: Quickshell
 
         function onScreensChanged() {
+            if (!isActiveInstance) return
             const currentScreenNames = Quickshell.screens.map(screen => screen.name)
 
             // Find disconnected screens and stop their processes
