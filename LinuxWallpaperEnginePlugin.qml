@@ -16,18 +16,26 @@ PluginComponent {
     property var processes: ({})
     property bool generateStaticWallpaper: pluginData.generateStaticWallpaper || false
     property bool prevGenerateStaticWallpaper: false
-    property bool isActiveInstance: false
     property string mainMonitor: {
         const monitors = Object.keys(monitorScenes)
         return monitors.length > 0 ? monitors[0] : ""
     }
     property var previousScreenNames: []
     property var playlistIndices: ({})
+    property bool ready: false
+    property var pendingLaunches: ({})
 
     onPluginDataChanged: {
-        if (isActiveInstance) {
-            syncScenesWithData()
+        if (ready) {
+            syncDebounce.restart()
         }
+    }
+
+    Timer {
+        id: syncDebounce
+        interval: 50
+        repeat: false
+        onTriggered: syncScenesWithData()
     }
 
     // Watch for display hotplug events (connect/disconnect)
@@ -35,13 +43,13 @@ PluginComponent {
         target: Quickshell
 
         function onScreensChanged() {
-            if (!isActiveInstance) return
             const currentScreenNames = Quickshell.screens.map(screen => screen.name)
 
             // Find disconnected screens and stop their processes
             const removedScreens = previousScreenNames.filter(name => !currentScreenNames.includes(name))
             for (const screenName of removedScreens) {
                 if (processes[screenName]) {
+                    console.info("LinuxWallpaperEngine: Display disconnected:", screenName, "- stopping scene")
                     stopWallpaperEngine(screenName, false, "")
                 }
             }
@@ -51,6 +59,7 @@ PluginComponent {
             for (const screenName of newScreens) {
                 const sceneId = getEffectiveScene(screenName)
                 if (sceneId) {
+                    console.info("LinuxWallpaperEngine: Display connected:", screenName, "- restoring scene:", sceneId)
                     launchWallpaperEngine(screenName, sceneId)
                 }
             }
@@ -60,7 +69,6 @@ PluginComponent {
     }
 
     onGenerateStaticWallpaperChanged: {
-        if (!isActiveInstance) return
         if (prevGenerateStaticWallpaper !== generateStaticWallpaper) {
             prevGenerateStaticWallpaper = generateStaticWallpaper
             for (const monitor in monitorScenes) {
@@ -80,7 +88,7 @@ PluginComponent {
     function restartPlaylistTimers() {
         playlistTimer.interval = playlistIntervalMinutes * 60 * 1000
         const hasAny = Object.keys(monitorPlaylists || {}).some(m => hasActivePlaylist(m))
-        if (hasAny && isActiveInstance) {
+        if (hasAny) {
             playlistTimer.restart()
             playlistTimer.running = true
         } else {
@@ -165,6 +173,7 @@ PluginComponent {
 
     function syncScenesWithData() {
         const connectedMonitors = Quickshell.screens.map(screen => screen.name)
+        console.info("LinuxWallpaperEngine: Syncing scenes. Connected monitors:", JSON.stringify(connectedMonitors))
         const effectiveScenes = {}
         for (const monitor of connectedMonitors) {
             const scene = getEffectiveScene(monitor)
@@ -200,8 +209,11 @@ PluginComponent {
             const sceneChanged = newSceneId !== oldSceneId
             const settingsChanged = !deepEqual(newSettings || {}, oldSettings || {})
             const processNotRunning = !processes[monitor]
+            const isPending = pendingLaunches[monitor]
 
-            if (sceneChanged || settingsChanged || processNotRunning) {
+            console.info("LinuxWallpaperEngine: Monitor", monitor, "- sceneChanged:", sceneChanged, "settingsChanged:", settingsChanged, "processNotRunning:", processNotRunning, "isPending:", isPending)
+
+            if ((sceneChanged || settingsChanged || processNotRunning) && !isPending) {
                 launchWallpaperEngine(monitor, newSceneId)
             }
         }
@@ -217,6 +229,7 @@ PluginComponent {
     }
 
     function launchWallpaperEngine(monitor, sceneId) {
+        pendingLaunches[monitor] = true
         stopWallpaperEngine(monitor, true, sceneId)
     }
 
@@ -311,6 +324,11 @@ PluginComponent {
                 return args
             }
 
+            onExited: (code) => {
+                if (code !== 0) {
+                    console.warn("LinuxWallpaperEngine: Process exited with code:", code, "for scene", sceneId, "on", monitor)
+                }
+            }
         }
     }
 
@@ -328,6 +346,9 @@ PluginComponent {
 
 
             onExited: () => {
+                if (!startNew) {
+                    delete pendingLaunches[monitor]
+                }
                 if (startNew) {
                     const useScreenshot = root.generateStaticWallpaper
                     var screenshotPath = ""
@@ -352,6 +373,7 @@ PluginComponent {
 
                     processes[monitor] = weProc
                     weProc.running = true
+                    delete pendingLaunches[monitor]
 
                     if (useScreenshot) {
                         var setWallpaper = setWallpaperTimer.createObject(root, {
@@ -381,38 +403,11 @@ PluginComponent {
             interval: 1500
 
             onTriggered: {
+                console.info("LinuxWallpaperEngine: Set wp on", monitor, "to", screenshotPath)
                 if (!SessionData.perMonitorWallpaper) {
                     SessionData.setPerMonitorWallpaper(true)
                 }
                 SessionData.setMonitorWallpaper(monitor, screenshotPath)
-            }
-        }
-    }
-
-    Process {
-        id: startupCleanup
-        command: ["bash", "-c", "pkill -f linux-wallpaperengine 2>/dev/null; fuser -k /tmp/lwe-instance.lock 2>/dev/null; sleep 0.2; true"]
-        onExited: (code) => {
-            lockChecker.running = true
-            instanceCheckTimer.start()
-        }
-    }
-
-    Process {
-        id: lockChecker
-        command: ["bash", "-c", "exec 200>/tmp/lwe-instance.lock; flock -n 200 || exit 1; sleep infinity"]
-
-    }
-
-    Timer {
-        id: instanceCheckTimer
-        interval: 100
-        repeat: false
-        onTriggered: {
-            if (lockChecker.running) {
-                isActiveInstance = true
-                prevGenerateStaticWallpaper = generateStaticWallpaper
-                syncScenesWithData()
             }
         }
     }
@@ -423,7 +418,6 @@ PluginComponent {
         repeat: true
         interval: playlistIntervalMinutes * 60 * 1000
         onTriggered: {
-            if (!isActiveInstance) return
             for (const monitor in monitorPlaylists) {
                 if (hasActivePlaylist(monitor)) {
                     advancePlaylist(monitor)
@@ -434,13 +428,14 @@ PluginComponent {
 
     Component.onCompleted: {
         previousScreenNames = Quickshell.screens.map(screen => screen.name)
-        startupCleanup.running = true
+        console.info("LinuxWallpaperEngine: Plugin starting...")
+        prevGenerateStaticWallpaper = generateStaticWallpaper
+        ready = true
+        syncScenesWithData()
     }
 
     Component.onDestruction: {
-        if (lockChecker.running) {
-            lockChecker.running = false
-        }
+        console.info("LinuxWallpaperEngine: Plugin stopping, cleaning up processes")
 
         for (const monitor in processes) {
             if (processes[monitor]) {

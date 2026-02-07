@@ -258,6 +258,58 @@ PluginSettings {
     }
 
     StyledText {
+        text: "Scene ID"
+        font.pixelSize: Theme.fontSizeMedium
+        font.weight: Font.Medium
+    }
+
+    StyledText {
+        text: "Enter a Steam Workshop scene ID manually"
+        font.pixelSize: Theme.fontSizeSmall
+        opacity: 0.7
+        wrapMode: Text.Wrap
+    }
+
+    Row {
+        width: parent.width
+        spacing: Theme.spacingM
+
+        DankTextField {
+            id: sceneIdField
+            width: parent.width - applyButton.width - addToPlaylistButton.width - Theme.spacingM * 2
+            placeholderText: "e.g., 1234567890"
+            text: {
+                root.currentSceneRefresh
+                return root.getCurrentSceneId() || ""
+            }
+        }
+
+        DankButton {
+            id: applyButton
+            text: "Apply"
+            enabled: sceneIdField.text.trim() !== ""
+            onClicked: {
+                setScene(sceneIdField.text.trim())
+            }
+        }
+
+        DankButton {
+            id: addToPlaylistButton
+            text: "Add to Playlist"
+            enabled: sceneIdField.text.trim() !== ""
+            onClicked: {
+                addToPlaylist(sceneIdField.text.trim())
+            }
+        }
+    }
+
+    Rectangle {
+        width: parent.width
+        height: 1
+        color: Theme.outlineStrong
+    }
+
+    StyledText {
         text: "Playlist"
         font.pixelSize: Theme.fontSizeMedium
         font.weight: Font.Medium
@@ -275,7 +327,7 @@ PluginSettings {
         spacing: Theme.spacingM
 
         DankButton {
-            text: "Add to Playlist"
+            text: "Browse Scenes"
             width: (parent.width - Theme.spacingM) / 2
             onClicked: {
                 sceneBrowser.addToPlaylistMode = true
@@ -368,72 +420,101 @@ PluginSettings {
         }
     }
 
-    ToggleSetting {
-        settingKey: "playlistShuffle"
-        label: "Shuffle"
-        description: "Play scenes in random order"
-        defaultValue: false
-    }
-
-    SliderSetting {
-        settingKey: "playlistIntervalMinutes"
-        label: "Interval (minutes)"
-        description: "Time between wallpaper changes"
-        defaultValue: 5
-        minimum: 1
-        maximum: 120
-        unit: "min"
-    }
-
-    Rectangle {
+    Column {
         width: parent.width
-        height: 1
-        color: Theme.outlineStrong
-    }
+        spacing: 2
 
-    StyledText {
-        text: "Scene ID"
-        font.pixelSize: Theme.fontSizeMedium
-        font.weight: Font.Medium
-    }
+        Row {
+            width: parent.width
+            spacing: Theme.spacingM
+            StyledText {
+                text: "Shuffle"
+                font.pixelSize: Theme.fontSizeSmall
+                width: 180
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            DankToggle {
+                id: shuffleToggle
+                anchors.verticalCenter: parent.verticalCenter
 
-    StyledText {
-        text: "Enter a Steam Workshop scene ID manually"
-        font.pixelSize: Theme.fontSizeSmall
-        opacity: 0.7
-        wrapMode: Text.Wrap
-    }
+                Binding {
+                    target: shuffleToggle
+                    property: "checked"
+                    value: loadValue("playlistShuffle", false)
+                }
 
-    Row {
-        width: parent.width
-        spacing: Theme.spacingM
-
-        DankTextField {
-            id: sceneIdField
-            width: parent.width - applyButton.width - addToPlaylistButton.width - Theme.spacingM * 2
-            placeholderText: "e.g., 1234567890"
-            text: {
-                root.currentSceneRefresh
-                return root.getCurrentSceneId() || ""
+                onToggled: {
+                    saveValue("playlistShuffle", checked)
+                }
             }
         }
+        StyledText {
+            text: "Play scenes in random order"
+            font.pixelSize: Theme.fontSizeSmall * 0.9
+            opacity: 0.5
+            width: parent.width
+            wrapMode: Text.Wrap
+        }
+    }
 
-        DankButton {
-            id: applyButton
-            text: "Apply"
-            enabled: sceneIdField.text.trim() !== ""
-            onClicked: {
-                setScene(sceneIdField.text.trim())
+    Timer {
+        id: intervalDebounceTimer
+        interval: 500
+        repeat: false
+        onTriggered: {
+            saveValue("playlistIntervalMinutes", Math.round(intervalSlider.value))
+        }
+    }
+
+    Column {
+        width: parent.width
+        spacing: 2
+
+        Row {
+            width: parent.width
+            height: 24
+            spacing: Theme.spacingM
+
+            StyledText {
+                text: "Interval"
+                font.pixelSize: Theme.fontSizeSmall
+                width: 180
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            DankSlider {
+                id: intervalSlider
+                width: parent.width - 180 - Theme.spacingM - intervalValueText.width - Theme.spacingM
+                minimum: 1
+                maximum: 120
+                showValue: false
+                anchors.verticalCenter: parent.verticalCenter
+
+                Binding {
+                    target: intervalSlider
+                    property: "value"
+                    value: loadValue("playlistIntervalMinutes", 5)
+                }
+
+                onSliderValueChanged: (newValue) => {
+                    intervalDebounceTimer.restart()
+                }
+            }
+
+            StyledText {
+                id: intervalValueText
+                text: Math.round(intervalSlider.value) + " min"
+                font.pixelSize: Theme.fontSizeSmall
+                width: 50
+                anchors.verticalCenter: parent.verticalCenter
             }
         }
-
-        DankButton {
-            id: addToPlaylistButton
-            text: "Add"
-            enabled: sceneIdField.text.trim() !== ""
-            onClicked: {
-                addToPlaylist(sceneIdField.text.trim())
-            }
+        StyledText {
+            text: "Time between wallpaper changes"
+            font.pixelSize: Theme.fontSizeSmall * 0.9
+            opacity: 0.5
+            width: parent.width
+            wrapMode: Text.Wrap
         }
     }
 
@@ -449,25 +530,26 @@ PluginSettings {
         font.weight: Font.Medium
     }
 
-    Item {
+    Column {
         width: parent.width
-        height: scalingRow.implicitHeight
+        spacing: 2
 
         Row {
             id: scalingRow
             width: parent.width
+            height: 24
             spacing: Theme.spacingM
 
             StyledText {
-                text: "Scaling:"
+                text: "Scaling"
                 font.pixelSize: Theme.fontSizeSmall
-                width: 100
+                width: 180
                 anchors.verticalCenter: parent.verticalCenter
             }
 
             DankDropdown {
                 id: scalingDropdown
-                width: parent.width - 100 - Theme.spacingM
+                width: parent.width - 180 - Theme.spacingM
                 options: ["default", "stretch", "fit", "fill"]
                 compactMode: true
 
@@ -482,36 +564,44 @@ PluginSettings {
                 }
             }
         }
+        StyledText {
+            text: "How the wallpaper is scaled to fit the screen"
+            font.pixelSize: Theme.fontSizeSmall * 0.9
+            opacity: 0.5
+            width: parent.width
+            wrapMode: Text.Wrap
+        }
     }
 
-    Item {
-        width: parent.width
-        height: fpsRow.implicitHeight
-
-        Timer {
-            id: fpsDebounceTimer
-            interval: 500
-            repeat: false
-            onTriggered: {
-                saveSceneSetting("fps", Math.round(fpsSlider.value))
-            }
+    Timer {
+        id: fpsDebounceTimer
+        interval: 500
+        repeat: false
+        onTriggered: {
+            saveSceneSetting("fps", Math.round(fpsSlider.value))
         }
+    }
+
+    Column {
+        width: parent.width
+        spacing: 2
 
         Row {
             id: fpsRow
             width: parent.width
+            height: 24
             spacing: Theme.spacingM
 
             StyledText {
-                text: "FPS:"
+                text: "FPS"
                 font.pixelSize: Theme.fontSizeSmall
-                width: 100
+                width: 180
                 anchors.verticalCenter: parent.verticalCenter
             }
 
             DankSlider {
                 id: fpsSlider
-                width: parent.width - 100 - Theme.spacingM - fpsValueText.width - Theme.spacingM
+                width: parent.width - 180 - Theme.spacingM - fpsValueText.width - Theme.spacingM
                 minimum: 10
                 maximum: 144
                 showValue: false
@@ -536,11 +626,18 @@ PluginSettings {
                 anchors.verticalCenter: parent.verticalCenter
             }
         }
+        StyledText {
+            text: "Frame rate for the animated wallpaper"
+            font.pixelSize: Theme.fontSizeSmall * 0.9
+            opacity: 0.5
+            width: parent.width
+            wrapMode: Text.Wrap
+        }
     }
 
-    Item {
+    Column {
         width: parent.width
-        height: silentRow.implicitHeight
+        spacing: 2
 
         Row {
             id: silentRow
@@ -548,9 +645,9 @@ PluginSettings {
             spacing: Theme.spacingM
 
             StyledText {
-                text: "Silent Mode:"
+                text: "Silent Mode"
                 font.pixelSize: Theme.fontSizeSmall
-                width: 100
+                width: 180
                 anchors.verticalCenter: parent.verticalCenter
             }
 
@@ -569,38 +666,46 @@ PluginSettings {
                 }
             }
         }
+        StyledText {
+            text: "Mute all wallpaper audio"
+            font.pixelSize: Theme.fontSizeSmall * 0.9
+            opacity: 0.5
+            width: parent.width
+            wrapMode: Text.Wrap
+        }
+    }
+
+    Timer {
+        id: volumeDebounceTimer
+        interval: 500
+        repeat: false
+        onTriggered: {
+            saveSceneSetting("volume", Math.round(volumeSlider.value))
+        }
     }
 
     // volume slider, hidden when silent is enabled
-    Item {
+    Column {
         width: parent.width
-        height: volumeRow.implicitHeight
+        spacing: 2
         visible: !getSceneSetting("silent", true)
-
-        Timer {
-            id: volumeDebounceTimer
-            interval: 500
-            repeat: false
-            onTriggered: {
-                saveSceneSetting("volume", Math.round(volumeSlider.value))
-            }
-        }
 
         Row {
             id: volumeRow
             width: parent.width
+            height: 24
             spacing: Theme.spacingM
 
             StyledText {
-                text: "Volume:"
+                text: "Volume"
                 font.pixelSize: Theme.fontSizeSmall
-                width: 100
+                width: 180
                 anchors.verticalCenter: parent.verticalCenter
             }
 
             DankSlider {
                 id: volumeSlider
-                width: parent.width - 100 - Theme.spacingM - volumeValueText.width - Theme.spacingM
+                width: parent.width - 180 - Theme.spacingM - volumeValueText.width - Theme.spacingM
                 minimum: 0
                 maximum: 100
                 showValue: false
@@ -625,6 +730,13 @@ PluginSettings {
                 width: 40
                 anchors.verticalCenter: parent.verticalCenter
             }
+        }
+        StyledText {
+            text: "Audio volume when silent mode is off"
+            font.pixelSize: Theme.fontSizeSmall * 0.9
+            opacity: 0.5
+            width: parent.width
+            wrapMode: Text.Wrap
         }
     }
 
@@ -809,7 +921,7 @@ PluginSettings {
     StyledText {
         text: "When enabled, a screenshot of the animated wallpaper will be captured and used for lock screen and theme color extraction. This will overwrite your current wallpaper settings."
         font.pixelSize: Theme.fontSizeSmall
-        opacity: 0.7
+        opacity: 0.5
         wrapMode: Text.Wrap
         width: parent.width
     }
@@ -817,7 +929,7 @@ PluginSettings {
     StyledText {
         text: "Warning: This feature may cause system crashes on some configurations."
         font.pixelSize: Theme.fontSizeSmall
-        opacity: 0.5
+        opacity: 0.7
         wrapMode: Text.Wrap
         width: parent.width
     }
