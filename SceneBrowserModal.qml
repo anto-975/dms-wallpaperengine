@@ -55,7 +55,7 @@ DankModal {
                 }
 
                 StyledText {
-                    text: "Select Workshop Scene"
+                    text: "Select Workshop Scene" + (addToPlaylistMode ? " to Add to Playlist" : "")
                     font.pixelSize: Theme.fontSizeLarge
                     font.weight: Font.Bold
                     anchors.verticalCenter: parent.verticalCenter

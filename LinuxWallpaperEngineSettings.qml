@@ -537,7 +537,6 @@ PluginSettings {
         Row {
             id: scalingRow
             width: parent.width
-            height: 24
             spacing: Theme.spacingM
 
             StyledText {
@@ -885,9 +884,9 @@ PluginSettings {
         width: parent.width
     }
 
-    Item {
+    Column {
         width: parent.width
-        height: staticWallpaperRow.implicitHeight
+        spacing: 2
 
         Row {
             id: staticWallpaperRow
@@ -895,7 +894,7 @@ PluginSettings {
             spacing: Theme.spacingM
 
             StyledText {
-                text: "Generate static wallpaper:"
+                text: "Generate Static Wallpaper"
                 font.pixelSize: Theme.fontSizeSmall
                 width: 180
                 anchors.verticalCenter: parent.verticalCenter
@@ -916,14 +915,75 @@ PluginSettings {
                 }
             }
         }
+        StyledText {
+            text: "Capture a screenshot of the animated wallpaper for lock screen and theme color extraction"
+            font.pixelSize: Theme.fontSizeSmall * 0.9
+            opacity: 0.5
+            width: parent.width
+            wrapMode: Text.Wrap
+        }
     }
 
-    StyledText {
-        text: "When enabled, a screenshot of the animated wallpaper will be captured and used for lock screen and theme color extraction. This will overwrite your current wallpaper settings."
-        font.pixelSize: Theme.fontSizeSmall
-        opacity: 0.5
-        wrapMode: Text.Wrap
+    Timer {
+        id: screenshotDelayDebounceTimer
+        interval: 500
+        repeat: false
+        onTriggered: {
+            saveSceneSetting("screenshotDelay", Math.round(screenshotDelaySlider.value))
+        }
+    }
+
+    Column {
         width: parent.width
+        spacing: 2
+        visible: loadValue("generateStaticWallpaper", false)
+
+        Row {
+            width: parent.width
+            height: 24
+            spacing: Theme.spacingM
+
+            StyledText {
+                text: "Screenshot Delay"
+                font.pixelSize: Theme.fontSizeSmall
+                width: 180
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            DankSlider {
+                id: screenshotDelaySlider
+                width: parent.width - 180 - Theme.spacingM - screenshotDelayValueText.width - Theme.spacingM
+                minimum: 5
+                maximum: 150
+                showValue: false
+                anchors.verticalCenter: parent.verticalCenter
+
+                Binding {
+                    target: screenshotDelaySlider
+                    property: "value"
+                    value: getSceneSetting("screenshotDelay", 5)
+                }
+
+                onSliderValueChanged: (newValue) => {
+                    screenshotDelayDebounceTimer.restart()
+                }
+            }
+
+            StyledText {
+                id: screenshotDelayValueText
+                text: Math.round(screenshotDelaySlider.value) + " frames"
+                font.pixelSize: Theme.fontSizeSmall
+                width: 70
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+        StyledText {
+            text: "Number of frames to wait before taking the screenshot"
+            font.pixelSize: Theme.fontSizeSmall * 0.9
+            opacity: 0.5
+            width: parent.width
+            wrapMode: Text.Wrap
+        }
     }
 
     StyledText {
@@ -932,6 +992,7 @@ PluginSettings {
         opacity: 0.7
         wrapMode: Text.Wrap
         width: parent.width
+        visible: loadValue("generateStaticWallpaper", false)
     }
 
     Rectangle {

@@ -277,6 +277,11 @@ PluginComponent {
                 if (useScreenshot && screenshotPath) {
                     args.push("--screenshot")
                     args.push(screenshotPath)
+                    var screenshotDelay = settings.screenshotDelay || 5
+                    if (screenshotDelay !== 5) {
+                        args.push("--screenshot-delay")
+                        args.push(String(screenshotDelay))
+                    }
                 }
 
                 args.push("--bg")
@@ -376,10 +381,14 @@ PluginComponent {
                     delete pendingLaunches[monitor]
 
                     if (useScreenshot) {
+                        var screenshotDelay = sceneSettings.screenshotDelay || 5
+                        var fps = sceneSettings.fps || 30
+                        var calculatedDelay = Math.round((screenshotDelay / fps) * 1000)
                         var setWallpaper = setWallpaperTimer.createObject(root, {
                             monitor: monitor,
                             screenshotPath: screenshotPath,
-                            mainMonitor: root.mainMonitor
+                            mainMonitor: root.mainMonitor,
+                            delayMs: 1500 + calculatedDelay
                         })
                         setWallpaper.running = true
                     }
@@ -397,10 +406,11 @@ PluginComponent {
             property string monitor: ""
             property string screenshotPath: ""
             property string mainMonitor: ""
+            property int delayMs: 1500
 
             running: false
             repeat: false
-            interval: 1500
+            interval: delayMs
 
             onTriggered: {
                 console.info("LinuxWallpaperEngine: Set wp on", monitor, "to", screenshotPath)
