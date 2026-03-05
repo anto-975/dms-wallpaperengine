@@ -2,6 +2,7 @@ import QtCore
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Services.UPower
 import qs.Common
 import qs.Services
 import qs.Modules.Plugins
@@ -16,6 +17,27 @@ PluginComponent {
     property var processes: ({})
     property bool generateStaticWallpaper: pluginData.generateStaticWallpaper || false
     property bool prevGenerateStaticWallpaper: false
+    property bool pauseOnPowerSaver: pluginData.pauseOnPowerSaver || false
+    property bool pauseOnBattery: pluginData.pauseOnBattery || false
+
+    readonly property bool shouldPauseWallpaper: {
+        if (pauseOnPowerSaver && typeof PowerProfiles !== "undefined" && PowerProfiles.profile === PowerProfile.PowerSaver) return true
+        if (pauseOnBattery && BatteryService.batteryAvailable && !BatteryService.isPluggedIn) return true
+        return false
+    }
+
+    onShouldPauseWallpaperChanged: {
+        if (!ready) return
+        if (shouldPauseWallpaper) {
+            console.info("LinuxWallpaperEngine: Pausing wallpapers (power state change)")
+            for (const monitor of Quickshell.screens.map(s => s.name)) {
+                if (processes[monitor]) stopWallpaperEngine(monitor, false, "")
+            }
+        } else {
+            console.info("LinuxWallpaperEngine: Resuming wallpapers (power state change)")
+            syncScenesWithData()
+        }
+    }
     property string mainMonitor: {
         const monitors = Object.keys(monitorScenes)
         return monitors.length > 0 ? monitors[0] : ""
@@ -213,7 +235,7 @@ PluginComponent {
 
             console.info("LinuxWallpaperEngine: Monitor", monitor, "- sceneChanged:", sceneChanged, "settingsChanged:", settingsChanged, "processNotRunning:", processNotRunning, "isPending:", isPending)
 
-            if ((sceneChanged || settingsChanged || processNotRunning) && !isPending) {
+            if ((sceneChanged || settingsChanged || processNotRunning) && !isPending && !shouldPauseWallpaper) {
                 launchWallpaperEngine(monitor, newSceneId)
             }
         }
@@ -355,6 +377,12 @@ PluginComponent {
                     delete pendingLaunches[monitor]
                 }
                 if (startNew) {
+                    if (root.shouldPauseWallpaper) {
+                        delete pendingLaunches[monitor]
+                        destroy()
+                        return
+                    }
+
                     const useScreenshot = root.generateStaticWallpaper
                     var screenshotPath = ""
 

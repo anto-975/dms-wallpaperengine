@@ -755,6 +755,92 @@ PluginSettings {
     }
 
     StyledText {
+        text: "Power Management"
+        font.pixelSize: Theme.fontSizeMedium
+        font.weight: Font.Medium
+    }
+
+    Column {
+        width: parent.width
+        spacing: 2
+
+        Row {
+            width: parent.width
+            spacing: Theme.spacingM
+            StyledText {
+                text: "Pause on Power Saver"
+                font.pixelSize: Theme.fontSizeSmall
+                width: 180
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            DankToggle {
+                id: pauseOnPowerSaverToggle
+                anchors.verticalCenter: parent.verticalCenter
+
+                Binding {
+                    target: pauseOnPowerSaverToggle
+                    property: "checked"
+                    value: loadValue("pauseOnPowerSaver", false)
+                }
+
+                onToggled: {
+                    saveValue("pauseOnPowerSaver", checked)
+                }
+            }
+        }
+        StyledText {
+            text: "Stop wallpaper when power saver profile is active"
+            font.pixelSize: Theme.fontSizeSmall * 0.9
+            opacity: 0.5
+            width: parent.width
+            wrapMode: Text.Wrap
+        }
+    }
+
+    Column {
+        width: parent.width
+        spacing: 2
+
+        Row {
+            width: parent.width
+            spacing: Theme.spacingM
+            StyledText {
+                text: "Pause on Battery"
+                font.pixelSize: Theme.fontSizeSmall
+                width: 180
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            DankToggle {
+                id: pauseOnBatteryToggle
+                anchors.verticalCenter: parent.verticalCenter
+
+                Binding {
+                    target: pauseOnBatteryToggle
+                    property: "checked"
+                    value: loadValue("pauseOnBattery", false)
+                }
+
+                onToggled: {
+                    saveValue("pauseOnBattery", checked)
+                }
+            }
+        }
+        StyledText {
+            text: "Stop wallpaper when running on battery power"
+            font.pixelSize: Theme.fontSizeSmall * 0.9
+            opacity: 0.5
+            width: parent.width
+            wrapMode: Text.Wrap
+        }
+    }
+
+    Rectangle {
+        width: parent.width
+        height: 1
+        color: Theme.outlineStrong
+    }
+
+    StyledText {
         text: "Advanced Settings"
         font.pixelSize: Theme.fontSizeMedium
         font.weight: Font.Medium
