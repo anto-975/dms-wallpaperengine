@@ -377,7 +377,7 @@ PluginComponent {
                     delete pendingLaunches[monitor]
                 }
                 if (startNew) {
-                    if (root.shouldPauseWallpaper) {
+                    if (!root.ready || root.shouldPauseWallpaper) {
                         delete pendingLaunches[monitor]
                         destroy()
                         return
@@ -461,6 +461,23 @@ PluginComponent {
                     advancePlaylist(monitor)
                 }
             }
+        }
+    }
+
+    function toggle() {
+        if (ready) {
+            for (const monitor in processes) {
+                stopWallpaperEngine(monitor, false, "")
+            }
+            ready = false
+            playlistTimer.running = false
+            console.info("LinuxWallpaperEngine: Toggled OFF")
+        } else {
+            previousScreenNames = Quickshell.screens.map(screen => screen.name)
+            prevGenerateStaticWallpaper = generateStaticWallpaper
+            ready = true
+            syncScenesWithData()
+            console.info("LinuxWallpaperEngine: Toggled ON")
         }
     }
 
