@@ -602,7 +602,7 @@ PluginSettings {
                 id: fpsSlider
                 width: parent.width - 180 - Theme.spacingM - fpsValueText.width - Theme.spacingM
                 minimum: 10
-                maximum: 144
+                maximum: 240
                 showValue: false
                 anchors.verticalCenter: parent.verticalCenter
 
@@ -626,7 +626,7 @@ PluginSettings {
             }
         }
         StyledText {
-            text: "Frame rate for the animated wallpaper"
+            text: "Frame rate for the animated wallpaper - high FPS can cause system instability"
             font.pixelSize: Theme.fontSizeSmall * 0.9
             opacity: 0.5
             width: parent.width
